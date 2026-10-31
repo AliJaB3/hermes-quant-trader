@@ -1,4 +1,5 @@
 from dataclasses import dataclass, astuple
+from pathlib import Path
 import sqlite3
 
 
@@ -21,6 +22,8 @@ class EpisodicTrade:
 
 class EpisodicStore:
     def __init__(self, path=':memory:'):
+        if path and path != ':memory:':
+            Path(path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path)
         self.connection.execute('PRAGMA journal_mode=WAL')
         self.connection.execute('''CREATE TABLE IF NOT EXISTS episodic_trades

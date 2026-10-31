@@ -54,7 +54,9 @@ class RiskGuardian:
             side = OrderSide(proposal.side)
             order_type = OrderType(proposal.order_type)
             if self.procedural is not None:
-                approved, reason = self.procedural.validate_proposal(proposal.symbol, side, order_type, current_portfolio.get("indicators", {}))
+                indicators = dict(current_portfolio.get("indicators") or {})
+                indicators.setdefault('price', proposal.price if proposal.price is not None else current_portfolio.get('prices', {}).get(proposal.symbol, 0))
+                approved, reason = self.procedural.validate_proposal(proposal.symbol, side, order_type, indicators)
                 if not approved:
                     return False, reason
             qty = float(proposal.quantity)

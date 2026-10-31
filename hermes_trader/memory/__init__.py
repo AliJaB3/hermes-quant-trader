@@ -93,3 +93,7 @@ from .semantic import HypothesisStatus, SemanticHypothesis, SemanticKnowledgeDAG
 from .procedural import RuleType, ProceduralRule, ProceduralRuleEngine
 from .learning_pipeline import LearningPipeline
 from .drift_monitor import MarketDriftMonitor
+from .causal_shadow import ShadowRecord, CausalShadowTracker
+from .hypergraph import HyperEdge, HypergraphView
+from .synaptic_sleep import SynapticSleepCycle
+from .fencing import FencingToken, FencingTokenManager

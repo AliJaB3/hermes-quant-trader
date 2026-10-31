@@ -22,6 +22,11 @@ def main(argv=None):
     sub.add_parser('status')
     memory = sub.add_parser('memory-status')
     memory.add_argument('--db', default=os.environ.get('HERMES_TRADER_MEMORY_DB', '~/.hermes/trader-memory.db'))
+    for command in ('hypergraph-summary', 'sleep-cycle'):
+        graph_parser = sub.add_parser(command)
+        graph_parser.add_argument('--db', default=os.environ.get('HERMES_TRADER_MEMORY_DB', '~/.hermes/trader-memory.db'))
+        if command == 'sleep-cycle':
+            graph_parser.add_argument('--min-weight', type=float, default=0.1)
     run = sub.add_parser('run')
     run.add_argument('--strategy', required=True)
     run.add_argument('--live', action='store_true', help='poll public Binance prices')
@@ -40,6 +45,18 @@ def main(argv=None):
     scaffold = sub.add_parser('scaffold')
     scaffold.add_argument('--path', default='~/.hermes/profiles/trader')
     args = parser.parse_args(argv)
+    if args.command in ('hypergraph-summary', 'sleep-cycle'):
+        from hermes_trader.memory.hypergraph import HypergraphView
+        from hermes_trader.memory.synaptic_sleep import SynapticSleepCycle
+        path = Path(args.db).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        graph = HypergraphView(path)
+        try:
+            result = graph.get_summary() if args.command == 'hypergraph-summary' else {'pruned_edges': SynapticSleepCycle().prune_hypergraph(graph, args.min_weight), **graph.get_summary()}
+            print(json.dumps(result))
+        finally:
+            graph.close()
+        return 0
     if args.command == 'memory-status':
         from hermes_trader.memory.episodic import EpisodicStore
         from hermes_trader.memory.semantic import SemanticKnowledgeDAG
@@ -70,7 +87,8 @@ def main(argv=None):
         print(json.dumps(ProfileScaffolder().generate_trader_profile(args.path)))
         return 0
     memory_path = Path(os.environ.get("HERMES_TRADER_MEMORY_DB", "~/.hermes/trader-memory.db")).expanduser()
-    rules = ProceduralRuleEngine(memory_path) if memory_path.exists() else ProceduralRuleEngine()
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    rules = ProceduralRuleEngine(memory_path)
     engine = PaperEngine(guardian=RiskGuardian(procedural=rules))
     state_path = Path(os.environ.get('HERMES_TRADER_STATE', '~/.hermes/trader-state.json')).expanduser()
     if state_path.exists():

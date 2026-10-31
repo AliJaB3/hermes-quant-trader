@@ -2,6 +2,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from enum import Enum
 import json
+from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
@@ -35,6 +36,8 @@ class SemanticHypothesis:
 
 class SemanticKnowledgeDAG:
     def __init__(self, path=':memory:'):
+        if path and path != ':memory:':
+            Path(path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path)
         self.connection.execute('PRAGMA journal_mode=WAL')
         self.connection.execute('CREATE TABLE IF NOT EXISTS semantic_hypotheses (id TEXT PRIMARY KEY, data TEXT NOT NULL)')

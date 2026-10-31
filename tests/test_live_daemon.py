@@ -51,6 +51,7 @@ def test_daemon_execution_and_stale():
 
 def test_run_cli(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv('HERMES_TRADER_STATE', str(tmp_path / 'state.json'))
+    monkeypatch.setenv('HERMES_TRADER_MEMORY_DB', str(tmp_path / 'memory.db'))
     path = tmp_path / 'strategy.json'
     path.write_text(json.dumps({'strategy_id': 'test', 'version': '1', 'target_universe': ['BTCUSDT'],
         'alpha_rules': [{'condition': 'last_price > 90'}], 'execution_parameters': {'quantity': 0.1}}))

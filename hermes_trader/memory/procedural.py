@@ -4,8 +4,10 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 import json
 import operator
+from pathlib import Path
 import sqlite3
 from .semantic import now
+from .causal_shadow import CausalShadowTracker
 
 
 class RuleType(str, Enum):
@@ -59,10 +61,13 @@ def _condition(expression, context):
 
 class ProceduralRuleEngine:
     def __init__(self, path=':memory:'):
+        if path and path != ':memory:':
+            Path(path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path)
         self.connection.execute('PRAGMA journal_mode=WAL')
         self.connection.execute('CREATE TABLE IF NOT EXISTS procedural_rules (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
         self.connection.commit()
+        self.shadow_tracker = CausalShadowTracker(connection=self.connection)
 
     def register_rule(self, rule):
         ast.parse(rule.condition_dsl, mode='eval')
@@ -102,8 +107,10 @@ class ProceduralRuleEngine:
                     continue
                 matches = _condition(rule.condition_dsl, context)
             except (KeyError, ValueError, TypeError, SyntaxError, OverflowError):
+                self.shadow_tracker.record_blocked(symbol, context['side'], rule.rule_id, context.get('price') or 0.0)
                 return False, f'Invalid procedural rule {rule.rule_id}: {rule.condition_dsl}'
             if matches and rule.action == 'BLOCK':
+                self.shadow_tracker.record_blocked(symbol, context['side'], rule.rule_id, context.get('price') or 0.0)
                 return False, f'Blocked by procedural rule {rule.rule_id}: {rule.condition_dsl}'
         return True, 'All procedural rules passed'
 
