@@ -17,6 +17,11 @@ class BinanceFeedClient:
             bid, ask, bid_qty, ask_qty = (float(msg[k]) for k in ('b', 'a', 'B', 'A'))
             if not all(math.isfinite(x) and x > 0 for x in (bid, ask)) or bid > ask or not all(math.isfinite(x) and x >= 0 for x in (bid_qty, ask_qty)):
                 return None
+            sequence = msg.get('u', msg.get('U'))
+            if sequence is not None:
+                if isinstance(sequence, bool) or not str(sequence).isdigit():
+                    return None
+                self.watchdog.record_sequence(int(sequence))
             mid = (bid + ask) / 2
             tick = MarketTick(self.symbol, bid, ask, mid, (ask - bid) / mid * 10000, time.time())
             self.watchdog.record_tick(tick)

@@ -18,8 +18,8 @@ def test_shadow_records_and_isolation(tmp_path):
     tracker = CausalShadowTracker(path)
     buy = tracker.record_blocked('BTC', 'BUY', 'r', 100)
     sell = tracker.record_blocked('BTC', 'SELL', 'r', 100)
-    assert tracker.resolve_counterfactual(buy, 110) == 10
-    assert tracker.resolve_counterfactual(sell, 110) == -10
+    assert tracker.resolve_counterfactual(buy, 110) == pytest.approx(9.896)
+    assert tracker.resolve_counterfactual(sell, 110) == pytest.approx(-10.104)
     assert tracker.get_shadow_stats('BTC')['wins'] == 1
     assert tracker.get_shadow_stats('BTC')['losses'] == 1
     assert tracker.get_shadow_stats('ETH')['total'] == 0
@@ -38,7 +38,7 @@ def test_procedural_block_records_proposal_price(tmp_path):
     assert not RiskGuardian(procedural=rules).validate_proposal(proposal, {})[0]
     row = rules.connection.execute('SELECT record_id, hypothetical_price FROM shadow_counterfactuals').fetchone()
     assert row[1] == 100
-    assert rules.shadow_tracker.resolve_counterfactual(row[0], 105) == 5
+    assert rules.shadow_tracker.resolve_counterfactual(row[0], 105) == pytest.approx(4.898)
     rules.close()
 
 
@@ -47,9 +47,9 @@ def test_sleep_and_cli_persist_graph(tmp_path, capsys):
     graph = HypergraphView(path)
     low = graph.add_hyperedge(['a', 'b'], weight=.1)
     normal = graph.add_hyperedge(['b', 'c'])
-    immune = graph.add_hyperedge(['rare'], weight=.01, z_score=-3)
+    immune = graph.add_hyperedge(['rare'], weight=.01, z_score=-3, impact_score=1)
     assert immune.is_immune
-    assert graph.add_hyperedge(['other'], z_score=3).is_immune
+    assert graph.add_hyperedge(['other'], z_score=3, impact_score=1).is_immune
     assert SynapticSleepCycle().prune_hypergraph(graph) == 1
     assert graph.get_hyperedge(low.edge_id) is None
     assert graph.get_hyperedge(normal.edge_id).weight == pytest.approx(.95)

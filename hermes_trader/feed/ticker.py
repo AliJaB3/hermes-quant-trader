@@ -20,11 +20,26 @@ class FeedWatchdog:
             raise ValueError('max_stale_ms must be positive and finite')
         self.max_stale_ms = max_stale_ms
         self.last_tick = None
+        self.sequence_gap_detected = False
+        self.last_sequence_id = None
 
     def record_tick(self, tick: MarketTick):
         self.last_tick = tick
 
+    def record_sequence(self, sequence_id: int) -> bool:
+        if self.last_sequence_id is not None and sequence_id > self.last_sequence_id + 1:
+            self.sequence_gap_detected = True
+            return False
+        self.last_sequence_id = sequence_id
+        return True
+
+    def reset_gap(self):
+        self.sequence_gap_detected = False
+        self.last_sequence_id = None
+
     def is_healthy(self) -> bool:
+        if self.sequence_gap_detected:
+            return False
         if self.last_tick is None or not math.isfinite(self.last_tick.timestamp):
             return False
         age = time.time() - self.last_tick.timestamp

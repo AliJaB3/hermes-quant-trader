@@ -49,6 +49,7 @@ class CausalShadowTracker:
             if row[0] not in ('BUY', 'SELL'):
                 raise ValueError('unsupported side')
             pnl = (float(current_price) - row[1]) * (1 if row[0] == 'BUY' else -1)
+            pnl -= row[1] * 0.0004 + float(current_price) * 0.0004 + row[1] * 0.0002
             self.connection.execute('UPDATE shadow_counterfactuals SET resolution_price=?, counterfactual_pnl=? WHERE record_id=?', (float(current_price), pnl, record_id))
         return pnl
 
