@@ -26,12 +26,12 @@ class PaperEngine:
         self.slippage_model = slippage_model or DepthSlippageModel()
         saved = self.store.load_state()
         if saved is not None:
-            self.initial_balance = saved['initial_balance']
-            self.cash = saved['cash']
-            self.peak_equity = saved['peak_equity']
-            self.tickers = {s: tuple(v) for s, v in saved['tickers'].items()}
-            self.positions = {s: Position(**{**p, 'side': PositionSide(p['side'])}) for s, p in saved['positions'].items()}
-            self.reports = [ExecutionReport(**{**r, 'side': OrderSide(r['side'])}) for r in saved['reports']]
+            self.initial_balance = saved.get('initial_balance', self.initial_balance)
+            self.cash = saved.get('cash', self.cash)
+            self.peak_equity = saved.get('peak_equity', self.initial_balance)
+            self.tickers = {s: tuple(v) for s, v in saved.get('tickers', {}).items()}
+            self.positions = {s: Position(**{**p, 'side': PositionSide(p['side'])}) for s, p in saved.get('positions', {}).items()}
+            self.reports = [ExecutionReport(**{**r, 'side': OrderSide(r['side'])}) for r in saved.get('reports', [])]
 
     def _save(self):
         self.store.save_state({'initial_balance': self.initial_balance, 'cash': self.cash,
