@@ -3,6 +3,7 @@ import hmac
 import math
 import threading
 from .reservation import CapacityReservationManager
+from hermes_trader.memory.procedural import ProceduralRuleEngine
 from hermes_trader.contracts import GuardianState, OrderSide, OrderType, PositionSide
 
 @dataclass
@@ -17,7 +18,8 @@ class RiskLimits:
     taker_fee_rate: float = 0.0004
 
 class RiskGuardian:
-    def __init__(self, limits=None, state=GuardianState.NORMAL):
+    def __init__(self, limits=None, state=GuardianState.NORMAL, procedural=None):
+        self.procedural = procedural if procedural is not None else ProceduralRuleEngine()
         self.limits = limits or RiskLimits()
         self.state = GuardianState(state)
         self.reservations = CapacityReservationManager()
@@ -51,6 +53,10 @@ class RiskGuardian:
         try:
             side = OrderSide(proposal.side)
             order_type = OrderType(proposal.order_type)
+            if self.procedural is not None:
+                approved, reason = self.procedural.validate_proposal(proposal.symbol, side, order_type, current_portfolio.get("indicators", {}))
+                if not approved:
+                    return False, reason
             qty = float(proposal.quantity)
             price = float(proposal.price if proposal.price is not None else current_portfolio.get('prices', {}).get(proposal.symbol, 0))
             drawdown = float(current_portfolio.get('drawdown_pct', 0))

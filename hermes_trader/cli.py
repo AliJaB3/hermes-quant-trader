@@ -10,6 +10,8 @@ from hermes_trader.contracts import GuardianState
 from hermes_trader.daemon import TradingDaemon
 from hermes_trader.feed.ticker import MarketTick, binance_tick
 from hermes_trader.paper import PaperEngine
+from hermes_trader.guardian import RiskGuardian
+from hermes_trader.memory.procedural import ProceduralRuleEngine
 from hermes_trader.proposer import StrategyProposer
 from hermes_trader.scaffold import ProfileScaffolder
 from hermes_trader.strategy import StrategyLoader, WalkForwardValidator
@@ -18,6 +20,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog='hermes-trader')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('status')
+    memory = sub.add_parser('memory-status')
+    memory.add_argument('--db', default=os.environ.get('HERMES_TRADER_MEMORY_DB', '~/.hermes/trader-memory.db'))
     run = sub.add_parser('run')
     run.add_argument('--strategy', required=True)
     run.add_argument('--live', action='store_true', help='poll public Binance prices')
@@ -36,6 +40,19 @@ def main(argv=None):
     scaffold = sub.add_parser('scaffold')
     scaffold.add_argument('--path', default='~/.hermes/profiles/trader')
     args = parser.parse_args(argv)
+    if args.command == 'memory-status':
+        from hermes_trader.memory.episodic import EpisodicStore
+        from hermes_trader.memory.semantic import SemanticKnowledgeDAG
+        path = Path(args.db).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        episodic, semantic, procedural = EpisodicStore(path), SemanticKnowledgeDAG(path), ProceduralRuleEngine(path)
+        try:
+            print(json.dumps({'episodic_trade_count': episodic.count(), 'hypotheses': [asdict(h) for h in semantic.get_hypotheses()], 'rules': [asdict(r) for r in procedural.get_rules()]}))
+        finally:
+            episodic.close()
+            semantic.close()
+            procedural.close()
+        return 0
     if args.command == 'test-strategy':
         try:
             data = yaml.safe_load(Path(args.file).read_text())
@@ -52,7 +69,9 @@ def main(argv=None):
     if args.command == 'scaffold':
         print(json.dumps(ProfileScaffolder().generate_trader_profile(args.path)))
         return 0
-    engine = PaperEngine()
+    memory_path = Path(os.environ.get("HERMES_TRADER_MEMORY_DB", "~/.hermes/trader-memory.db")).expanduser()
+    rules = ProceduralRuleEngine(memory_path) if memory_path.exists() else ProceduralRuleEngine()
+    engine = PaperEngine(guardian=RiskGuardian(procedural=rules))
     state_path = Path(os.environ.get('HERMES_TRADER_STATE', '~/.hermes/trader-state.json')).expanduser()
     if state_path.exists():
         try:
