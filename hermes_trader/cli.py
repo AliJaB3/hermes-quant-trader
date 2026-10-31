@@ -16,6 +16,7 @@ def main(argv=None):
     propose.add_argument('--side', choices=['BUY', 'SELL'], required=True)
     propose.add_argument('--qty', type=float, required=True)
     propose.add_argument('--price', type=float, required=True)
+    propose.add_argument('--stop-loss', type=float)
     sub.add_parser('emergency-stop')
     scaffold = sub.add_parser('scaffold')
     scaffold.add_argument('--path', default='~/.hermes/profiles/trader')
@@ -40,7 +41,7 @@ def main(argv=None):
         state_path.write_text(json.dumps({'state': engine.guardian.state.value}))
         print(message)
     else:
-        proposal = StrategyProposer().propose(args.symbol, args.side, args.qty, args.price)
+        proposal = StrategyProposer().propose(args.symbol, args.side, args.qty, args.price, stop_loss=args.stop_loss)
         approved, reason = engine.guardian.validate_proposal(proposal, engine.get_portfolio())
         print(reason)
         return 0 if approved else 1

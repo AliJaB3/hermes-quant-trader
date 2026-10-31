@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
 import json
 import sqlite3
+from hermes_trader.contracts import ExecutionReport, OrderSide
 
 @dataclass
 class TradingThesis:
@@ -42,7 +43,13 @@ class EvoMemJournal:
         self.connection = sqlite3.connect(path)
         self.connection.execute('PRAGMA journal_mode=WAL')
         self.connection.executescript('CREATE TABLE IF NOT EXISTS trades (execution_id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS theses (thesis_id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS constraints (id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, text TEXT NOT NULL, UNIQUE(symbol, text));')
+        self.connection.execute('CREATE TABLE IF NOT EXISTS loss_clusters (execution_id TEXT PRIMARY KEY, cluster_key TEXT NOT NULL, data TEXT NOT NULL)')
         self.connection.commit()
+        self.loss_clusters = {}
+        for key, data in self.connection.execute('SELECT cluster_key, data FROM loss_clusters ORDER BY rowid'):
+            fields = json.loads(data)
+            fields['side'] = OrderSide(fields['side'])
+            self.loss_clusters.setdefault(key, []).append(ExecutionReport(**fields))
 
     def record_trade(self, report):
         with self.connection:
@@ -53,13 +60,26 @@ class EvoMemJournal:
             self.connection.execute('INSERT OR REPLACE INTO theses VALUES (?, ?)', (thesis.thesis_id, json.dumps(asdict(thesis))))
 
     def extract_negative_constraints(self, losing_trade, thesis):
-        if losing_trade.realized_pnl >= 0:
+        return self.record_loss(losing_trade.symbol, losing_trade.side, losing_trade, thesis)
+
+    def record_loss(self, symbol, side, report, thesis=None):
+        side = OrderSide(side)
+        if report.realized_pnl >= 0:
             raise ValueError('trade must have negative realized PnL')
-        if losing_trade.symbol != thesis.symbol:
+        if report.symbol != symbol or OrderSide(report.side) != side:
+            raise ValueError('trade and cluster differ')
+        if thesis is not None and symbol != thesis.symbol:
             raise ValueError('trade and thesis symbols differ')
-        text = f"Do not repeat {losing_trade.side.value if hasattr(losing_trade.side, 'value') else losing_trade.side} on {thesis.symbol} when {thesis.falsification_condition}."
+        key = f'{symbol}_{side.value}'
         with self.connection:
-            self.connection.execute('INSERT OR IGNORE INTO constraints (symbol, text) VALUES (?, ?)', (thesis.symbol, text))
+            inserted = self.connection.execute('INSERT OR IGNORE INTO loss_clusters VALUES (?, ?, ?)', (report.execution_id, key, json.dumps(asdict(report)))).rowcount
+            cluster = self.loss_clusters.setdefault(key, [])
+            if inserted:
+                cluster.append(report)
+            if len(cluster) < 3 or sum(trade.realized_pnl for trade in cluster) >= -50.0:
+                return None
+            text = f"Do not open {side.value} on {symbol} during high volatility"
+            self.connection.execute('INSERT OR IGNORE INTO constraints (symbol, text) VALUES (?, ?)', (symbol, text))
         return text
 
     def get_negative_constraints(self, symbol):
