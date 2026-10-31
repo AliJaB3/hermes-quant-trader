@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import hmac
 import math
+import threading
+from .reservation import CapacityReservationManager
 from hermes_trader.contracts import GuardianState, OrderSide, OrderType, PositionSide
 
 @dataclass
@@ -18,6 +20,30 @@ class RiskGuardian:
     def __init__(self, limits=None, state=GuardianState.NORMAL):
         self.limits = limits or RiskLimits()
         self.state = GuardianState(state)
+        self.reservations = CapacityReservationManager()
+        self.execution_lock = threading.RLock()
+
+    def reserve_proposal(self, proposal, current_portfolio):
+        """Reserve incremental exposure against the same snapshot used for validation."""
+        positions = current_portfolio.get('positions', {})
+        entries = positions.values() if isinstance(positions, dict) else positions
+        def field(p, name, default=0):
+            return p.get(name, default) if isinstance(p, dict) else getattr(p, name, default)
+        entries = list(entries)
+        exposure = sum(abs(float(field(p, 'size'))) * float(field(p, 'current_price')) for p in entries)
+        position = next((p for p in entries if field(p, 'symbol', '') == proposal.symbol), None)
+        signed = (float(field(position, 'size')) * (-1 if field(position, 'side') == PositionSide.SHORT else 1)) if position else 0.0
+        price = float(proposal.price)
+        result = signed + float(proposal.quantity) * (1 if OrderSide(proposal.side) == OrderSide.BUY else -1)
+        increment = max(0.0, (abs(result) - abs(signed)) * price)
+        existing_symbol = abs(signed) * price
+        equity = current_portfolio.get('equity')
+        available = max(0.0, self.limits.max_position_size_usd - existing_symbol)
+        if equity is not None:
+            available = min(available, max(0.0, float(equity) * self.limits.max_leverage - exposure))
+        tail = self.limits.estimated_tail_move_pct
+        available_cvar = max(0.0, self.limits.max_cvar_99_usd - max(float(current_portfolio.get('cvar_99', 0)), exposure * tail))
+        return self.reservations.reserve(proposal.proposal_id, increment, increment * tail, available, available_cvar)
 
     def validate_proposal(self, proposal, current_portfolio):
         if self.state == GuardianState.HALTED:
