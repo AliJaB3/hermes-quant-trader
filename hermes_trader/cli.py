@@ -20,6 +20,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog='hermes-trader')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('status')
+    sub.add_parser('stress-test')
+    sub.add_parser('venues')
     memory = sub.add_parser('memory-status')
     memory.add_argument('--db', default=os.environ.get('HERMES_TRADER_MEMORY_DB', '~/.hermes/trader-memory.db'))
     for command in ('hypergraph-summary', 'sleep-cycle'):
@@ -45,6 +47,14 @@ def main(argv=None):
     scaffold = sub.add_parser('scaffold')
     scaffold.add_argument('--path', default='~/.hermes/profiles/trader')
     args = parser.parse_args(argv)
+    if args.command == 'stress-test':
+        from hermes_trader.strategy.stress_tester import SyntheticStressTester
+        print(json.dumps(SyntheticStressTester().run_stress_test(lambda tick: 0.0)))
+        return 0
+    if args.command == 'venues':
+        from hermes_trader.venues import VenueCapabilityMatrix
+        print(json.dumps(VenueCapabilityMatrix().as_dict()))
+        return 0
     if args.command in ('hypergraph-summary', 'sleep-cycle'):
         from hermes_trader.memory.hypergraph import HypergraphView
         from hermes_trader.memory.synaptic_sleep import SynapticSleepCycle

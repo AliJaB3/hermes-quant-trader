@@ -44,6 +44,10 @@ class OrderProposal:
     rationale: str
     cvar_estimate: float
     created_at: str
+    passport: object | None = None
+    strategy_passport_hash: str | None = None
+    current_code_content: str | None = None
+    current_config_content: str | None = None
 
 @dataclass
 class ExecutionReport:

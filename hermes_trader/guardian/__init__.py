@@ -51,6 +51,23 @@ class RiskGuardian:
         if self.state == GuardianState.HALTED:
             return False, "Guardian is halted"
         try:
+            passport = getattr(proposal, 'passport', None) or getattr(proposal, 'strategy_passport', None)
+            passport_hash = getattr(proposal, 'strategy_passport_hash', None)
+            if passport is not None or passport_hash:
+                from dataclasses import asdict
+                from hashlib import sha256
+                import json
+                from hermes_trader.strategy.passport import StrategyPassportManager
+                code = getattr(proposal, 'current_code_content', None)
+                config = getattr(proposal, 'current_config_content', None)
+                if passport is None or code is None or config is None or not StrategyPassportManager().validate_passport(passport, code, config):
+                    return False, "Invalid strategy passport"
+                if getattr(proposal, 'strategy_id', None) != passport.strategy_id:
+                    return False, "Invalid strategy passport"
+                if passport_hash:
+                    digest = sha256(json.dumps(asdict(passport), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                    if not hmac.compare_digest(str(passport_hash), digest):
+                        return False, "Invalid strategy passport"
             side = OrderSide(proposal.side)
             order_type = OrderType(proposal.order_type)
             if self.procedural is not None:
