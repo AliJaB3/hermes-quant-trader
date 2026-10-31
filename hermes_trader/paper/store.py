@@ -7,7 +7,8 @@ import threading
 
 
 class PortfolioStore:
-    def __init__(self, path=None):
+    def __init__(self, path=None, max_wal_bytes=50 * 1024 * 1024):
+        self.max_wal_bytes = max_wal_bytes
         self.path = str(Path(path or os.environ.get('HERMES_TRADER_PORTFOLIO', '~/.hermes/trader_portfolio.sqlite')).expanduser())
         if self.path != ':memory:':
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +31,25 @@ class PortfolioStore:
                 self.connection.execute('INSERT INTO positions VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)', (p['symbol'], p['side'], p['size'], p['entry_price'], p['leverage']))
             for r in state.get('reports', []):
                 self.connection.execute('INSERT OR REPLACE INTO orders VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (r['execution_id'], r['proposal_id'], r['symbol'], r['side'], r['filled_quantity'], r['avg_fill_price'], 'FILLED', r['timestamp']))
+
+        self.check_wal_size()
+
+    def checkpoint_wal(self):
+        """Truncate the WAL; return False if another connection prevents it."""
+        with self._lock:
+            busy, _, _ = self.connection.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()
+            return busy == 0
+
+    def check_wal_size(self):
+        """Return the observed WAL size, checkpointing if it exceeds the limit."""
+        with self._lock:
+            try:
+                size = os.path.getsize(self.path + '-wal') if self.path != ':memory:' else 0
+            except FileNotFoundError:
+                size = 0
+            if size > self.max_wal_bytes:
+                self.checkpoint_wal()
+            return size
 
     def load_state(self):
         with self._lock:

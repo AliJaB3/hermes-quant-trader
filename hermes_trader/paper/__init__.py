@@ -13,6 +13,7 @@ class PaperEngine:
     def __init__(self, initial_balance=10000.0, guardian=None, store=None, store_path=None, slippage_model=None):
         if not math.isfinite(initial_balance) or initial_balance <= 0:
             raise ValueError('initial balance must be positive and finite')
+        self._quiescing = False
         self.initial_balance = float(initial_balance)
         self.cash = float(initial_balance)
         self.guardian = guardian or RiskGuardian()
@@ -74,6 +75,8 @@ class PaperEngine:
 
     def execute_proposal(self, proposal):
         with self.guardian.execution_lock:
+            if self._quiescing:
+                return False, 'Engine is shutting down'
             return self._execute_proposal(proposal)
 
     def _execute_proposal(self, proposal):
