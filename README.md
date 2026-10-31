@@ -70,3 +70,29 @@ pytest -v tests/
 ```
 
 Complete test suite covering contracts, risk limits, paper execution with slippage/fees, negative constraints, and telegram commands.
+
+### Strategy DSL and walk-forward testing
+
+`hermes-trader test-strategy --file strategy.yaml` reads a YAML or JSON mapping
+with `strategy_id`, `version` (a string), `target_universe`, `alpha_rules`,
+`execution_parameters`, and optionally `candles`. The command prints a JSON
+report; with no candles there are no trades and the strategy is inadmissible.
+An admissibility result is a simulation result, not an order or an approval to
+trade.
+
+Each alpha rule has a `condition`, such as `ofi < -0.5 and spread_bps <= 6`.
+All rules must match. Conditions support indicator names, numeric constants,
+comparisons and `and`/`or`; they do not execute arbitrary code. Execution
+parameters support `side` (`BUY` or `SELL`), `quantity`, `stop_loss_pct` and
+`take_profit_pct`; percentages are percentage points (1 means 1%). Their
+respective defaults are BUY, 1, 1 and 2.
+
+Candles are ordered mappings with a `close`, optional `open`, `high`, `low`,
+`symbol`, and an `indicators` mapping. The validator reserves the first of
+`folds + 1` partitions as history and tests the remaining partitions in order.
+Signals use the previous candle and fills use the next open. Positions close at
+the end of each test partition; stops take precedence if both stop and target
+are touched in a candle. Fees and adverse slippage apply to both sides of each
+trade. Drawdown uses an initial equity of 10,000 quote currency units and
+realized PnL. This is a fixed-rule forward simulation; it does not train or
+optimize strategy parameters.

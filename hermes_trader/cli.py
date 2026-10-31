@@ -1,16 +1,21 @@
 import argparse
 import json
 import os
+from dataclasses import asdict
+import yaml
 from pathlib import Path
 from hermes_trader.contracts import GuardianState
 from hermes_trader.paper import PaperEngine
 from hermes_trader.proposer import StrategyProposer
 from hermes_trader.scaffold import ProfileScaffolder
+from hermes_trader.strategy import StrategyLoader, WalkForwardValidator
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='hermes-trader')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('status')
+    test_strategy = sub.add_parser('test-strategy')
+    test_strategy.add_argument('--file', required=True)
     propose = sub.add_parser('propose')
     propose.add_argument('--symbol', required=True)
     propose.add_argument('--side', choices=['BUY', 'SELL'], required=True)
@@ -21,6 +26,19 @@ def main(argv=None):
     scaffold = sub.add_parser('scaffold')
     scaffold.add_argument('--path', default='~/.hermes/profiles/trader')
     args = parser.parse_args(argv)
+    if args.command == 'test-strategy':
+        try:
+            data = yaml.safe_load(Path(args.file).read_text())
+            strategy = StrategyLoader().load_from_dict(data)
+            candles = data.get('candles', [])
+            if not isinstance(candles, list):
+                raise ValueError('candles must be a list')
+            report = WalkForwardValidator().validate(strategy, candles)
+        except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError) as exc:
+            print(json.dumps({'error': str(exc)}))
+            return 1
+        print(json.dumps(asdict(report)))
+        return 0
     if args.command == 'scaffold':
         print(json.dumps(ProfileScaffolder().generate_trader_profile(args.path)))
         return 0
