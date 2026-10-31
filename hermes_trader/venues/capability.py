@@ -15,6 +15,8 @@ class VenueCapabilityMatrix:
     def __init__(self):
         self.venues = {
             'BINANCE_FUTURES': VenueCapabilities(True, True, True, True, 'CENTRALIZED_OFFCHAIN'),
+            'LBANK_SPOT': VenueCapabilities(True, False, True, False, 'CENTRALIZED_OFFCHAIN'),
+            'LBANK_PERPETUAL': VenueCapabilities(True, True, True, False, 'CENTRALIZED_OFFCHAIN'),
             'HYPERLIQUID': VenueCapabilities(True, True, True, True, 'L1_APPCHAIN'),
             'UNISWAP_V3': VenueCapabilities(False, False, False, False, 'ON_CHAIN_EVM'),
         }

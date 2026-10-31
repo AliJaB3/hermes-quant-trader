@@ -7,7 +7,7 @@ name = "hermes-quant-trader"
 version = "0.1.0"
 description = "Proposer-guardian paper trading system"
 requires-python = ">=3.10"
-dependencies = ["PyYAML>=6.0"]
+dependencies = ["PyYAML>=6.0", "cryptography>=3.4"]
 
 [project.scripts]
 hermes-trader = "hermes_trader.cli:main"
