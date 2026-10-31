@@ -1,0 +1,20 @@
+strategy_id: "btc_momentum_breakout_v1"
+version: "1.0.0"
+target_universe:
+  - "BTCUSDT"
+timeframe: "5m"
+
+hypothesis:
+  premise: "Enter position on low spread with volume breakout"
+  falsification_condition: "Drawdown exceeds 4% or win rate drops below 45%"
+
+alpha_rules:
+  - indicator: "spread"
+    condition: "spread_bps <= 6.0"
+  - indicator: "volume"
+    condition: "volume_surge >= 1.5"
+
+execution_parameters:
+  max_leverage: 3.0
+  stop_loss_pct: 0.015
+  take_profit_pct: 0.03
